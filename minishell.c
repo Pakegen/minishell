@@ -6,7 +6,7 @@
 /*   By: qacjl <qacjl@student.42.fr>                +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/12/12 12:43:52 by axbaudri          #+#    #+#             */
-/*   Updated: 2025/02/09 17:25:46 by qacjl            ###   ########.fr       */
+/*   Updated: 2025/02/10 01:41:25 by qacjl            ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -80,7 +80,6 @@ int	main(int argc, char **argv, char **envp)
 			}
 			*/
 		}
-		
 		free_prompt(prompt);
 		free_terminal(shell);
 	}

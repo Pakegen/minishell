@@ -6,7 +6,7 @@
 /*   By: qacjl <qacjl@student.42.fr>                +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/02/10 01:25:41 by qacjl             #+#    #+#             */
-/*   Updated: 2025/02/10 01:33:29 by qacjl            ###   ########.fr       */
+/*   Updated: 2025/02/10 01:43:25 by qacjl            ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -100,3 +100,66 @@ int main2(void)
 				handle_pipe(args1, args2);
 			}
 		}
+
+
+void	display_history()
+{
+	HIST_ENTRY	**history_list;
+	int	i;
+
+	**history_list = history_list();
+	i = 0;
+	if (history_list)
+	{
+		while (history_list[i])
+		{
+			ft_printf("%d  %s\n", i + 1, history_list[i]->line);
+			i++;
+		}
+	}
+}
+/*
+int main(void)
+{
+    char *input;
+
+    // Charger l'historique depuis un fichier
+    read_history("history.txt");
+    using_history();
+
+    while (1)
+    {
+        input = readline("minishell> ");
+
+        if (!input)
+        {
+            printf("exit\n");
+            break;
+        }
+
+        // Ajoute la commande à l'historique si elle n'est pas vide
+        if (*input)
+        {
+            add_history(input);
+        }
+
+        // Vérifie si la commande est "history"
+        if (strcmp(input, "history") == 0)
+        {
+            display_history();
+        }
+        else
+        {
+            printf("Exécution de la commande : %s\n", input);
+        }
+
+        free(input);
+    }
+
+    // Sauvegarder l'historique dans un fichier avant de quitter
+    write_history("history.txt");
+
+    return 0;
+}
+a incorporer
+*/
