@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   prototype_redirection.c                            :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: qacjl <qacjl@student.42.fr>                +#+  +:+       +#+        */
+/*   By: quenalla <quenalla@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/02/10 01:25:41 by qacjl             #+#    #+#             */
-/*   Updated: 2025/02/10 01:43:25 by qacjl            ###   ########.fr       */
+/*   Updated: 2025/02/10 15:38:08 by quenalla         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -42,8 +42,9 @@ int	handle_redirection(const char *file, int io_flag)
 
 void	handle_pipe(char *cmd1[], char *cmd2[])
 {
-	int pipe_fd[2];
-	pid_t pid1, pid2;
+	int		pipe_fd[2];
+	pid_t 	pid1;
+	pid_t	pid2;
 
 	if (pipe(pipe_fd) == -1)
 	{
@@ -78,8 +79,8 @@ void	handle_pipe(char *cmd1[], char *cmd2[])
 int main2(void)
 		if (strstr(input, ">"))
 		{
-			char *cmd = strtok(input, "> ");
-			char *file = strtok(NULL, " ");
+			char *cmd = ft_strtok(input, "> ");
+			char *file = ft_strtok(NULL, " ");
 			if (cmd && file)
 			{
 				if (handle_redirection(file, O_WRONLY | O_CREAT | O_TRUNC) == 0)
@@ -91,8 +92,8 @@ int main2(void)
 		}
 		else if (strstr(input, "|"))
 		{
-			char *cmd1 = strtok(input, "|");
-			char *cmd2 = strtok(NULL, "");
+			char *cmd1 = ft_strtok(input, "|");
+			char *cmd2 = ft_strtok(NULL, "");
 			if (cmd1 && cmd2)
 			{
 				char *args1[] = {cmd1, NULL};
@@ -100,6 +101,7 @@ int main2(void)
 				handle_pipe(args1, args2);
 			}
 		}
+
 
 
 void	display_history()
