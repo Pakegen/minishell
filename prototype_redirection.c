@@ -161,5 +161,17 @@ int main(void)
 
     return 0;
 }
+pour la redirection avance 
+if (io_flag == O_APPEND)  // Redirection en mode ajout (>>)
+{
+    fd = open(file, O_WRONLY | O_CREAT | O_APPEND, 0644);
+    if (fd < 0)
+    {
+        perror("Erreur lors de l'ouverture du fichier");
+        return -1;
+    }
+    dup2(fd, STDOUT_FILENO);
+    close(fd);
+}
 a incorporer
 */
