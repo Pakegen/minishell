@@ -6,38 +6,22 @@
 /*   By: axbaudri <axbaudri@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/12/13 17:10:48 by axbaudri          #+#    #+#             */
-/*   Updated: 2025/02/07 17:21:17 by axbaudri         ###   ########.fr       */
+/*   Updated: 2025/02/12 19:27:45 by axbaudri         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "minishell.h"
 
-void	write_env(char **envp, t_prompt *prompt)
+void	write_env(t_list *lst)
 {
-	int	i;
+	t_list	*temp;
 
-	i = 0;
-	while (i < count_strings(envp))
+	temp = lst;
+	while (temp)
 	{
-		if (!(ft_strcmp(prompt->strs[0], "export") == 0
-				&& ft_strncmp(envp[i], "_=", 2) == 0) && envp[i][0])
-			ft_printf("%s\n", envp[i]);
-		i++;
+		ft_printf("%s\n", temp->content);
+		temp = temp->next;
 	}
-}
-
-char	*ft_strcpy(char *dest, const char *src)
-{
-	int	i;
-
-	i = 0;
-	while (src[i])
-	{
-		dest[i] = src[i];
-		i++;
-	}
-	dest[i] = 0;
-	return (dest);
 }
 
 int	calculate_total_size(int size, char **strs, char *sep)
@@ -83,4 +67,27 @@ char	*ft_strjoin2(int size, char **strs, char *sep)
 	}
 	new_string[total_size] = 0;
 	return (new_string);
+}
+
+char	*copy_line_with_quotes(char *src)
+{
+	int		i;
+	int		j;
+	char	*dest;
+
+	i = 0;
+	j = 0;
+	dest = (char *)malloc(sizeof(char) * (ft_strlen(src) + 3));
+	if (!dest)
+		return (NULL);
+	while (src[i] && src[i] != '=')
+		dest[j++] = src[i++];
+	if (src[i] == '=')
+		dest[j++] = src[i++];
+	dest[j++] = '"';
+	while (src[i])
+		dest[j++] = src[i++];
+	dest[j++] = '"';
+	dest[j] = 0;
+	return (dest);
 }

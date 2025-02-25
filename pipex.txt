@@ -1,0 +1,2042 @@
+
+#include "minishell.h"
+
+typedef enum e_state
+{
+	STATE_DEFAULT,
+	STATE_IN_SINGLE,
+	STATE_IN_DOUBLE,
+	STATE_ESCAPING
+}				t_state;
+
+static char	*append_char(char *str, char c)
+{
+	size_t	len;
+	char	*new_str;
+	size_t	i;
+
+	if (str)
+		len = ft_strlen(str);
+	else
+		len = 0;
+	new_str = malloc(len + 2);
+	if (new_str == NULL)
+		return (NULL);
+	i = 0;
+	while (str && str[i])
+	{
+		new_str[i] = str[i];
+		i++;
+	}
+	new_str[i] = c;
+	new_str[i + 1] = '\0';
+	if (str)
+		free(str);
+	return (new_str);
+}
+
+static void	process_default(char c, t_state *state, char **curr)
+{
+	if (c == ' ' || c == '\t')
+		return ;
+	if (c == '\'')
+	{
+		*state = STATE_IN_SINGLE;
+		return;
+	}
+	if (c == '"')
+	{
+		*state = STATE_IN_DOUBLE;
+		return;
+	}
+	if (c == '\\')
+	{
+		*state = STATE_ESCAPING;
+		return;
+	}
+	*curr = append_char(*curr, c);
+}
+
+static void	process_in_single(char c, t_state *state, char **curr)
+{
+	if (c == '\'')
+		*state = STATE_DEFAULT;
+	else
+		*curr = append_char(*curr, c);
+}
+
+static void	process_in_double(char c, t_state *state, char **curr)
+{
+	if (c == '"')
+		*state = STATE_DEFAULT;
+	else if (c == '\\')
+		*state = STATE_ESCAPING;
+	else
+		*curr = append_char(*curr, c);
+}
+
+static void	process_escaping(char c, t_state *state, char **curr)
+{
+	*curr = append_char(*curr, c);
+	*state = STATE_DEFAULT;
+}
+
+static void	process_char(char c, t_state *state, char **curr)
+{
+	if (*state == STATE_DEFAULT)
+	{
+		process_default(c, state, curr);
+		return;
+	}
+	if (*state == STATE_IN_SINGLE)
+	{
+		process_in_single(c, state, curr);
+		return;
+	}
+	if (*state == STATE_IN_DOUBLE)
+	{
+		process_in_double(c, state, curr);
+		return;
+	}
+	if (*state == STATE_ESCAPING)
+	{
+		process_escaping(c, state, curr);
+		return;
+	}
+}
+
+static void	tokenize_loop(const char *line, int *i, int *ti,
+		char ***tokens, char **curr, t_state *state)
+{
+	while (line[*i])
+	{
+		process_char(line[*i], state, curr);
+		if ((*state) == STATE_DEFAULT && (line[*i] == ' ' || line[*i] == '\t'))
+		{
+			if (*curr != NULL)
+			{
+				(*tokens)[*ti] = *curr;
+				*ti = *ti + 1;
+				*curr = NULL;
+			}
+		}
+		*i = *i + 1;
+	}
+}
+
+char	**advanced_tokenize(const char *line)
+{
+	int			i;
+	int			ti;
+	char		**tokens;
+	char		*curr;
+	t_state		state;
+
+	tokens = malloc(sizeof(char *) * (ft_strlen(line) + 1));
+	if (tokens == NULL)
+		return (NULL);
+	i = 0;
+	ti = 0;
+	curr = NULL;
+	state = STATE_DEFAULT;
+	tokenize_loop(line, &i, &ti, &tokens, &curr, &state);
+	if (curr != NULL)
+	{
+		tokens[ti] = curr;
+		ti = ti + 1;
+	}
+	tokens[ti] = NULL;
+	return (tokens);
+}
+
+#include "minishell.h"
+
+static int	get_redirection_flags_mode(const char *op, int *flags, int *mode)
+{
+	if (ft_strcmp(op, ">") == 0)
+	{
+		*flags = O_WRONLY | O_CREAT | O_TRUNC;
+		*mode = 0644;
+		return (1);
+	}
+	if (ft_strcmp(op, ">>") == 0)
+	{
+		*flags = O_WRONLY | O_CREAT | O_APPEND;
+		*mode = 0644;
+		return (1);
+	}
+	if (ft_strcmp(op, "<") == 0)
+	{
+		*flags = O_RDONLY;
+		*mode = 0;
+		return (1);
+	}
+	return (0);
+}
+
+int	adv_handle_redirect(const char *target, const char *op, int std_fd)
+{
+	int	flags;
+	int	mode;
+	int	ret;
+	int	fd;
+
+	if (get_redirection_flags_mode(op, &flags, &mode))
+	{
+		ret = redirect_file(target, std_fd, flags, mode);
+		return (ret);
+	}
+	if (ft_strcmp(op, ">&") == 0)
+	{
+		fd = ft_atoi(target);
+		if (dup2(fd, std_fd) == -1)
+		{
+			perror("dup2");
+			return (-1);
+		}
+		return (0);
+	}
+	return (-1);
+}
+
+int	handle_redirection_char(const char *file, const char *op)
+{
+	int	std_fd;
+
+	if (ft_strcmp(op, "<") == 0)
+		std_fd = STDIN_FILENO;
+	else
+		std_fd = STDOUT_FILENO;
+	return (adv_handle_redirect(file, op, std_fd));
+}
+
+#include "minishell.h"
+
+int	count_quotes(const char *cmd_line)
+{
+	int	i;
+	int	count;
+
+	i = 0;
+	count = 0;
+	while (cmd_line[i] != '\'' && cmd_line[i] != '"' && cmd_line[i])
+		i++;
+	if (cmd_line[i] == '\'')
+		count = count_occurrences(cmd_line, '\'');
+	else if (cmd_line[i] == '"')
+		count = count_occurrences(cmd_line, '"');
+	return (count);
+}
+
+int	check_path_validity(char *cmd)
+{
+	if (access(cmd, F_OK | X_OK) == -1 || !ft_strlen(ft_strrchr(cmd, '/') + 1))
+		return (0);
+	return (1);
+}
+
+int	existing_command(char **paths, char *cmd)
+{
+	int		i;
+	int		result;
+	char	*cmd_path;
+
+	i = 0;
+	if (!cmd)
+		return (0);
+	if (ft_strchr(cmd, '/'))
+		return (check_path_validity(cmd));
+	while (paths[i])
+	{
+		cmd_path = ft_strjoin(paths[i], cmd);
+		if (!cmd_path)
+			return (0);
+		result = access(cmd_path, F_OK | X_OK);
+		free(cmd_path);
+		if (result == 0)
+			return (1);
+		i++;
+	}
+	return (0);
+}
+
+#include "minishell.h"
+
+/*char	**parse_echo(t_prompt *prompt)
+{
+	char	**strs;
+	int		i;
+
+	i = 0;
+	while (prompt->echo[i] && prompt->echo[i] != '\'' && prompt->echo[i] != '"')
+		i++;
+	if (prompt->echo[i] == '\'')
+		strs = ft_split(prompt->echo, '\'');
+	else
+		strs = ft_split(prompt->echo, '"');
+	return (strs);
+}*/
+
+void	check_each_string(char *echo, char **strs, int quote)
+{
+	char	**splitted_str;
+	int		i;
+	int		j;
+	int		count;
+
+	i = 0;
+	j = 0;
+	count = 0;
+	while (echo[i])
+	{
+		if (echo[i] == quote)
+			count++;
+		if (ft_strcmp(echo + i, strs[j]) == 0)
+		{
+			if (count % 2 == 0)
+			{
+				i += ft_strlen(strs[j]);
+				splitted_str = ft_split(strs[j], ' ');
+				strs[j] = ft_strjoin2(count_words(strs[j]), splitted_str, " - ");
+				free_2d_array(splitted_str);
+			}
+			j++;
+		}
+		i++;
+	}
+}
+
+char	**parse_echo(t_prompt *prompt)
+{
+	char	**strs;
+	int		i;
+	int		quote;
+
+	i = 0;
+	while (prompt->echo[i] && prompt->echo[i] != '\'' && prompt->echo[i] != '"')
+		i++;
+	if (prompt->echo[i] == '\'')
+		quote = prompt->echo[i];
+	else
+		quote = '"';
+	strs = ft_split(prompt->echo, quote);
+	check_each_string(prompt->echo, strs, quote);
+	return (strs);
+}
+
+char	*exec_echo(char *cmd_line, char **strs)
+{
+	char	*echo;
+
+	if (!count_quotes(cmd_line))
+		echo = ft_strjoin2(count_words(cmd_line) - 2, strs + 2, " ");
+	else if (count_quotes(cmd_line) % 2 == 1)
+		echo = ft_strdup("Error\n");
+	else
+		echo = find_third_word(cmd_line);
+	return (echo);
+}
+
+char	*join_strings(char **strs)
+{
+	char	*joined_str;
+
+	joined_str = ft_strjoin2(count_strings(strs), strs, "");
+	return (joined_str);
+}
+
+#include "minishell.h"
+
+void	exec_export(t_shell *shell, t_prompt *prompt)
+{
+	if (count_words(prompt->cmd_line) == 1)
+		write_env(shell->export_lines);
+}
+
+#include "minishell.h"
+
+void	exec_unset(t_shell *shell, t_prompt *prompt)
+{
+	int	i;
+
+	i = 1;
+	while (prompt->strs[i])
+	{
+		find_env_line(shell, prompt->strs[i], &shell->env_lines);
+		find_env_line(shell, prompt->strs[i], &shell->export_lines);
+		i++;
+	}
+}
+
+void	find_env_line(t_shell *shell, char *var, t_list **lst)
+{
+	int		size;
+	t_list	*name;
+	t_list	*temp;
+
+	temp = *lst;
+	name = shell->vars;
+	while (name && ft_strcmp(name->content, var) != 0)
+		name = name->next;
+	if (name && ft_strcmp(name->content, "_") != 0)
+	{
+		size = ft_strlen(name->content);
+		while (temp && ft_strncmp(name->content, temp->content, size) != 0)
+			temp = temp->next;
+		if (temp)
+			remove_line(lst, temp->content);
+	}
+}
+
+void	remove_line(t_list **lst, char *line)
+{
+	t_list	*next_one;
+	t_list	*temp;
+
+	temp = *lst;
+	if (ft_strcmp(temp->content, line) == 0)
+	{
+		*lst = temp->next;
+		free(temp->content);
+		free(temp);
+		return ;
+	}
+	while (temp)
+	{
+		if (temp->next && ft_strcmp(temp->next->content, line) == 0)
+		{
+			next_one = temp->next;
+			temp->next = temp->next->next;
+			free(next_one->content);
+			free(next_one);
+			return ;
+		}
+		temp = temp->next;
+	}
+}
+
+#include "minishell.h"
+
+void	free_2d_array(char **strs)
+{
+	int	i;
+
+	i = 0;
+	if (!strs)
+		return ;
+	while (strs[i])
+		free(strs[i++]);
+	free(strs);
+}
+
+void	free_prompt(t_prompt *prompt)
+{
+	free(prompt->cmd_line);
+	free_2d_array(prompt->strs);
+}
+
+void	free_terminal(t_shell *shell)
+{
+	free(shell->path);
+	free(shell->pwd);
+	free(shell->old_pwd);
+	free_2d_array(shell->splitted_path);
+	free_2d_array(shell->export);
+	free_2d_array(shell->var_names);
+	ft_lstclear(&shell->env_lines, &free);
+	free(shell);
+}
+
+#include "minishell.h"
+
+char	*find_path_line(char **envp)
+{
+	int		i;
+	char	*path_line;
+
+	i = 0;
+	while (ft_strncmp(envp[i], "PATH=", 5) != 0)
+		i++;
+	path_line = ft_strdup(envp[i] + 5);
+	return (path_line);
+}
+
+char	*get_pwd(char **envp)
+{
+	int		i;
+	char	*path;
+
+	i = 0;
+	while (ft_strncmp(envp[i], "PWD=", 4) != 0)
+		i++;
+	path = ft_strdup(envp[i] + 4);
+	return (path);
+}
+
+int	get_shell_level(char **envp)
+{
+	int	i;
+	int	shlvl;
+
+	i = 0;
+	while (ft_strncmp(envp[i], "SHLVL=", 6) != 0)
+		i++;
+	shlvl = ft_atoi(envp[i] + 6);
+	return (shlvl);
+}
+
+char	**split_path(char **envp)
+{
+	int		i;
+	char	**splitted_path;
+
+	i = 0;
+	while (ft_strncmp(envp[i], "PATH=", 5) != 0)
+		i++;
+	splitted_path = ft_split(envp[i] + 5, ':');
+	i = 0;
+	while (splitted_path[i])
+	{
+		splitted_path[i] = join_and_free(splitted_path[i], "/");
+		i++;
+	}
+	return (splitted_path);
+}
+
+#include "minishell.h"
+
+static char	*append_str(char *dest, const char *src)
+{
+	size_t	len_dest;
+	size_t	len_src;
+	size_t	i;
+	size_t	j;
+	char	*new_str;
+
+	len_dest = ft_strlen(dest);
+	len_src = ft_strlen(src);
+	new_str = malloc(len_dest + len_src + 1);
+	if (new_str == NULL)
+		return (NULL);
+	i = 0;
+	while (dest && dest[i])
+	{
+		new_str[i] = dest[i];
+		i++;
+	}
+	j = 0;
+	while (src[j])
+	{
+		new_str[i + j] = src[j++];
+
+	}
+	new_str[i + j] = '\0';
+	if (dest)
+		free(dest);
+	return (new_str);
+}
+
+static char	*expand_var(const char *input, int *i)
+{
+	int		j;
+	char	*var_name;
+	char	*value;
+
+	j = *i + 1;
+	while (input[j] && ((input[j] >= 'A' && input[j] <= 'Z')
+			|| (input[j] >= 'a' && input[j] <= 'z')
+			|| (input[j] >= '0' && input[j] <= '9')
+			|| (input[j] == '_')))
+	{
+		j++;
+	}
+	var_name = ft_strndup(input + *i + 1, j - *i - 1);
+	value = getenv(var_name);
+	if (value == NULL)
+		value = "";
+	free(var_name);
+	*i = j;
+	return (ft_strdup(value));
+}
+
+char	*expand_variables(const char *input)
+{
+	int		i;
+	char	*result;
+	char	*temp;
+	char	str[2];
+
+	i = 0;
+	result = ft_strdup("");
+	while (input[i])
+	{
+		if (input[i] == '$')
+		{
+			temp = expand_var(input, &i);
+			result = append_str(result, temp);
+			free(temp);
+		}
+		else
+		{
+			str[0] = input[i];
+			str[1] = '\0';
+			result = append_str(result, str);
+			i = i + 1;
+		}
+	}
+	return (result);
+}
+
+#include "minishell.h"
+
+void	exec_cd(t_shell *shell, t_prompt *prompt)
+{
+	char	buffer[PATH_MAX];
+
+	if (chdir(prompt->strs[1]) != 0)
+		ft_printf("cd: no such file or directory: %s\n", prompt->strs[1]);
+	else
+	{
+		if (ft_strcmp(shell->old_pwd, shell->pwd) != 0)
+		{
+			free(shell->old_pwd);
+			shell->old_pwd = ft_strdup(shell->pwd);
+		}
+		getcwd(buffer, PATH_MAX);
+		free(shell->pwd);
+		shell->pwd = ft_strdup(buffer);
+	}
+	update_paths(shell, shell->env_lines);
+	update_paths_export(shell, shell->export_lines);
+}
+
+void	update_paths(t_shell *shell, t_list *lst)
+{
+	t_list	*temp;
+
+	temp = lst;
+	while (temp)
+	{
+		if (ft_strncmp(temp->content, "OLDPWD=", 7) == 0)
+		{
+			free(temp->content);
+			temp->content = ft_strjoin("OLDPWD=", shell->old_pwd);
+		}
+		else if (ft_strncmp(temp->content, "PWD=", 4) == 0)
+		{
+			free(temp->content);
+			temp->content = ft_strjoin("PWD=", shell->pwd);
+		}
+		temp = temp->next;
+	}
+}
+
+void	update_paths_export(t_shell *shell, t_list *lst)
+{
+	t_list	*temp;
+	char	*line;
+
+	temp = lst;
+	line = NULL;
+	while (temp)
+	{
+		if (ft_strncmp(temp->content, "OLDPWD=", 7) == 0)
+		{
+			free(temp->content);
+			line = ft_strjoin("OLDPWD=", shell->old_pwd);
+			temp->content = copy_line_with_quotes(line);
+			free(line);
+		}
+		else if (ft_strncmp(temp->content, "PWD=", 4) == 0)
+		{
+			free(temp->content);
+			line = ft_strjoin("PWD=", shell->pwd);
+			temp->content = copy_line_with_quotes(line);
+			free(line);
+		}
+		temp = temp->next;
+	}
+}
+
+#include "minishell.h"
+
+void	ft_swap(char **s1, char **s2)
+{
+	char	*tmp;
+
+	tmp = *s1;
+	*s1 = *s2;
+	*s2 = tmp;
+}
+
+void	sort_strings(char **envp, int size)
+{
+	int		i;
+	char	*tmp;
+
+	i = 0;
+	while (i < size - 1)
+	{
+		if (ft_strcmp(envp[i], envp[i + 1]) > 0)
+		{
+			tmp = envp[i];
+			envp[i] = envp[i + 1];
+			envp[i + 1] = tmp;
+			i = 0;
+		}
+		else
+			i++;
+	}
+}
+
+char	*find_third_word(const char *cmd_line)
+{
+	int		i;
+	int		count;
+	char	*echo;
+
+	i = 0;
+	count = 0;
+	if (cmd_line[0] != ' ')
+	{
+		i++;
+		count++;
+	}
+	while (cmd_line[i] && count < 3)
+	{
+		if (cmd_line[i] == ' ' && cmd_line[i + 1] && cmd_line[i + 1] != ' ')
+			count++;
+		i++;
+	}
+	echo = ft_strdup(cmd_line + i);
+	return (echo);
+}
+
+
+#include "minishell.h"
+
+int	handle_heredoc(const char *delimiter)
+{
+	int		pipe_fd[2];
+	char	*line;
+
+	if (pipe(pipe_fd) == -1)
+	{
+		perror("pipe");
+		return (-1);
+	}
+	while (1)
+	{
+		line = readline("heredoc> ");
+		if (!line)
+			break ;
+		if (strcmp(line, delimiter) == 0)
+		{
+			free(line);
+			break ;
+		}
+		write(pipe_fd[1], line, strlen(line));
+		write(pipe_fd[1], "\n", 1);
+		free(line);
+	}
+	close(pipe_fd[1]);
+	return (pipe_fd[0]);
+}
+
+
+#include "minishell.h"
+
+void	display_history(void)
+{
+	HIST_ENTRY	**history_list;
+	int			i;
+
+	history_list = history_get_history_state()->entries;
+	i = 0;
+	if (history_list)
+	{
+		while (history_list[i])
+		{
+			ft_printf("%d  %s\n", i + 1, history_list[i]->line);
+			i++;
+		}
+	}
+}
+
+void	verif_history(const char *input)
+{
+	if (strcmp(input, "history") == 0)
+		display_history();
+	else
+		ft_printf("Exécution de la commande : %s\n", input);
+}
+
+static char	**build_args(char *cmd)
+{
+	char	**args;
+	int		i;
+	char	*token;
+
+	args = malloc(sizeof(char *) * MAX_ARGS);
+	if (args == NULL)
+		exit(EXIT_FAILURE);
+	i = 0;
+	token = strtok(cmd, " \t\n");
+	while (token != NULL && i < MAX_ARGS - 1)
+	{
+		args[i] = token;
+		i = i + 1;
+		token = strtok(NULL, " \t\n");
+	}
+	args[i] = NULL;
+	return (args);
+}
+
+static void	do_redirection(int src, int dest)
+{
+	if (dup2(src, dest) == -1)
+	{
+		perror("dup2");
+		exit(EXIT_FAILURE);
+	}
+	close(src);
+}
+
+void	execute_command(char *cmd, int in_fd, int out_fd)
+{
+	pid_t	pid;
+	char	**args;
+
+	args = build_args(cmd);
+	pid = fork();
+	if (pid == 0)
+	{
+		if (in_fd != STDIN_FILENO)
+			do_redirection(in_fd, STDIN_FILENO);
+		if (out_fd != STDOUT_FILENO)
+			do_redirection(out_fd, STDOUT_FILENO);
+		execvp(args[0], args);
+		perror("execvp");
+		exit(EXIT_FAILURE);
+	}
+	else if (pid < 0)
+	{
+		perror("fork");
+		exit(EXIT_FAILURE);
+	}
+	free(args);
+}
+
+static int	build_cmds(char *input, char *cmds[256])
+{
+	int		num_cmds;
+	char	*token;
+
+	num_cmds = 0;
+	token = strtok(input, "|");
+	while (token != NULL)
+	{
+		cmds[num_cmds] = token;
+		num_cmds = num_cmds + 1;
+		token = strtok(NULL, "|");
+	}
+	return (num_cmds);
+}
+
+void	execute_pipes(char *input)
+{
+	int		num_cmds;
+	int		i;
+	int		fd[2];
+	int		in_fd;
+	int		out_fd;
+	char	*cmds[256];
+
+	in_fd = STDIN_FILENO;
+	num_cmds = build_cmds(input, cmds);
+	i = 0;
+	while (i < num_cmds)
+	{
+		out_fd = STDOUT_FILENO;
+		if ((i + 1) < num_cmds)
+		{
+			if (pipe(fd) == -1)
+			{
+				perror("pipe");
+				exit(EXIT_FAILURE);
+			}
+			out_fd = fd[1];
+		}
+		execute_command(cmds[i], in_fd, out_fd);
+		if (out_fd != STDOUT_FILENO)
+			close(fd[1]);
+		if ((i + 1) < num_cmds)
+			in_fd = fd[0];
+		i = i + 1;
+	}
+	i = 0;
+	while (i < num_cmds)
+	{
+		wait(NULL);
+		i = i + 1;
+	}
+}
+
+
+#include "minishell.h"
+
+void	display_echo(t_prompt *prompt)
+{
+	if (prompt->strs[1] && ft_strcmp(prompt->strs[1], "-n") == 0)
+	{
+		prompt->echo = exec_echo(prompt->cmd_line, prompt->strs);
+		ft_printf("%s", prompt->echo);
+		free(prompt->echo);
+	}
+}
+
+void	exec_exit(void)
+{
+	write(2, "exit\n", 5);
+	exit(1);
+}
+
+void	execute_builtin(t_shell *shell, t_prompt *prompt)
+{
+	if (!ft_strlen(prompt->cmd_line) || !count_strings(prompt->strs))
+		ft_printf("");
+	else if (ft_strcmp(prompt->strs[0], "echo") == 0)
+		display_echo(prompt);
+	else if (ft_strcmp(prompt->strs[0], "export") == 0)
+		exec_export(shell, prompt);
+	else if (ft_strcmp(prompt->strs[0], "env") == 0
+		&& count_words(prompt->cmd_line) == 1)
+		write_env(shell->env_lines);
+	else if (ft_strcmp(prompt->strs[0], "cd") == 0
+		&& count_strings(prompt->strs) == 2)
+		exec_cd(shell, prompt);
+	else if (ft_strcmp(prompt->strs[0], "pwd") == 0
+		&& count_words(prompt->cmd_line) == 1)
+		ft_printf("%s\n", shell->pwd);
+	else if (ft_strcmp(prompt->strs[0], "unset") == 0
+		&& count_words(prompt->cmd_line) > 1)
+		exec_unset(shell, prompt);
+	else if (ft_strcmp(prompt->strs[0], "exit") == 0
+		&& count_words(prompt->cmd_line) == 1)
+		exec_exit();
+	else if (!existing_command(shell->splitted_path, prompt->strs[0])
+		&& ft_strcmp(prompt->strs[0], "history") != 0)
+		ft_printf("command not found: %s\n", prompt->strs[0]);
+}
+
+int	main(int argc, char **argv, char **env)
+{
+	char		*line;
+	t_pipeline	*pipeline;
+
+	(void)argc;
+	(void)argv;
+	setup_signal();
+	while (1)
+	{
+		line = readline("minishell> ");
+		if (!line)
+		{
+			write(1, "exit\n", 5);
+			break ;
+		}
+		if (line[0] != '\0')
+			add_history(line);
+		pipeline = parse_input(line);
+		if (pipeline)
+		{
+			execute_pipeline(pipeline, env);
+			free_pipeline(pipeline);
+		}
+		free(line);
+	}
+	return (0);
+}
+
+#include "minishell.h"
+
+t_shell	*init_shell(char **envp)
+{
+	t_shell	*shell;
+
+	shell = (t_shell *)malloc(sizeof(t_shell));
+	if (!shell)
+		return (NULL);
+	shell->path = find_path_line(envp);
+	shell->old_pwd = get_pwd(envp);
+	shell->pwd = get_pwd(envp);
+	shell->splitted_path = split_path(envp);
+	shell->shlvl = get_shell_level(envp);
+	shell->env_lines = NULL;
+	copy_env(&shell->env_lines, envp);
+	shell->export = get_lines_export(envp);
+	sort_strings(shell->export, count_strings(envp));
+	copy_export(shell);
+	shell->var_names = get_var_names(envp);
+	shell->vars = NULL;
+	copy_env(&shell->vars, shell->var_names);
+	return (shell);
+}
+
+// echo "salut commment ca" va mon "amis"
+
+/*
+	char **cmd;
+
+	cmd[0] = echo;
+	cmd[0] = salut comment ca;
+	cmd[0] = va;
+	cmd[0] = mon;
+	cmd[0] = amis;
+*/
+
+t_prompt	*init_prompt(const char *buffer)
+{
+	t_prompt	*prompt;
+
+	prompt = (t_prompt *)malloc(sizeof(t_prompt));
+	if (!prompt)
+		return (NULL);
+	prompt->cmd_line = ft_strdup(buffer);
+	prompt->strs = ft_split(buffer, ' ');
+	return (prompt);
+}
+
+void	copy_env(t_list **lst, char **envp)
+{
+	t_list	*new;
+	int		i;
+
+	i = 0;
+	while (envp[i])
+	{
+		new = ft_lstnew(ft_strdup(envp[i]));
+		ft_lstadd_back(lst, new);
+		i++;
+	}
+}
+
+void	copy_export(t_shell *shell)
+{
+	t_list	*new;
+	int		i;
+
+	shell->export_lines = NULL;
+	i = 0;
+	while (shell->export[i + 1])
+	{
+		new = ft_lstnew(ft_strdup(shell->export[i]));
+		ft_lstadd_back(&shell->export_lines, new);
+		i++;
+	}
+}
+
+#include "minishell.h"
+
+int	is_valid(char *cmd_line)
+{
+	int	i;
+	int	s_quote_count;
+	int	d_quote_count;
+
+	i = 0;
+	s_quote_count = count_occurrences(cmd_line, '\'');
+	d_quote_count = count_occurrences(cmd_line, '"');
+	if (s_quote_count % 2 == 1 || d_quote_count % 2 == 1)
+		return (0);
+	while (cmd_line[i])
+	{
+
+	}
+	return (1);
+}
+
+#include "minishell.h"
+
+static int	count_raw_cmds(char **raw_cmds)
+{
+	int	count;
+
+	count = 0;
+	while (raw_cmds[count])
+	{
+		count++;
+	}
+	return (count);
+}
+
+/*static char	**build_new_tokens(char **tokens, char **heredoc, int new_count)
+{
+	int		i;
+	int		j;
+	char	**new_tokens;
+
+	new_tokens = malloc(sizeof(char *) * (new_count + 1));
+	if (new_tokens == NULL)
+		return (NULL);
+	i = 0;
+	j = 0;
+	while (tokens[i])
+	{
+		if (ft_strcmp(tokens[i], "<<") == 0)
+		{
+			*heredoc = ft_strdup(tokens[i + 1]);
+			i = i + 2;
+		}
+		else
+		{
+			new_tokens[j] = ft_strdup(tokens[i]);
+			j++;
+			i++;
+		}
+	}
+	new_tokens[j] = NULL;
+	return (new_tokens);
+}
+
+static char	**remove_heredoc_tokens(char **tokens, char **heredoc)
+{
+	int		new_count;
+	char	**new_tokens;
+
+	new_count = 0;
+	while (*tokens)
+	{
+		if (ft_strcmp(*tokens, "<<") == 0)
+			tokens = tokens + 2;
+		else
+		{
+			new_count++;
+			tokens++;
+		}
+	}
+	tokens = advanced_tokenize("");
+	new_tokens = build_new_tokens(tokens, heredoc, new_count);
+	return (new_tokens);
+}*/
+
+static char	**remove_hd_tokens(char **tokens, char **heredoc)
+{
+	int		i;
+	int		new_count;
+	char	**new_tokens;
+
+	i = 0;
+	new_count = 0;
+	while (tokens[i])
+	{
+		if (ft_strcmp(tokens[i], "<<") == 0)
+			i = i + 2;
+		else
+		{
+			new_count++;
+			i++;
+		}
+	}
+	new_tokens = malloc(sizeof(char *) * (new_count + 1));
+	if (new_tokens == NULL)
+		return (NULL);
+	i = 0;
+	new_count = 0;
+	while (tokens[i])
+	{
+		if (ft_strcmp(tokens[i], "<<") == 0)
+		{
+			*heredoc = ft_strdup(tokens[i + 1]);
+			i = i + 2;
+		}
+		else
+		{
+			new_tokens[new_count] = ft_strdup(tokens[i]);
+			new_count++;
+			i++;
+		}
+	}
+	new_tokens[new_count] = NULL;
+	return (new_tokens);
+}
+
+static t_command	*parse_command(char *raw)
+{
+	t_command	*cmd;
+	char		**tokens;
+	char		*heredoc;
+
+	cmd = malloc(sizeof(t_command));
+	if (cmd == NULL)
+		return (NULL);
+	tokens = advanced_tokenize(raw);
+	heredoc = NULL;
+	tokens = remove_hd_tokens(tokens, &heredoc);
+	cmd->args = tokens;
+	cmd->heredoc_delim = heredoc;
+	return (cmd);
+}
+
+static void	fill_pipeline(t_pipeline *pipeline, char **raw_cmds, int count)
+{
+	int			i;
+	t_command	*cmd;
+
+	i = 0;
+	while (i < count)
+	{
+		cmd = parse_command(raw_cmds[i]);
+		pipeline->commands[i] = *cmd;
+		free(cmd);
+		i++;
+	}
+}
+
+t_pipeline	*parse_input(const char *line)
+{
+	t_pipeline	*pipeline;
+	char		**raw_cmds;
+	int			count;
+	int			i;
+
+	raw_cmds = ft_split(line, '|');
+	count = count_raw_cmds(raw_cmds);
+	pipeline = malloc(sizeof(t_pipeline));
+	if (pipeline == NULL)
+		return (NULL);
+	pipeline->count = count;
+	pipeline->commands = malloc(sizeof(t_command) * count);
+	if (pipeline->commands == NULL)
+	{
+		free(pipeline);
+		return (NULL);
+	}
+	fill_pipeline(pipeline, raw_cmds, count);
+	i = 0;
+	while (raw_cmds[i])
+	{
+		free(raw_cmds[i]);
+		i++;
+	}
+	free(raw_cmds);
+	return (pipeline);
+}
+
+void	free_pipeline(t_pipeline *pipeline)
+{
+	int	i;
+	int	j;
+
+	if (pipeline == NULL)
+		return ;
+	i = 0;
+	while (i < pipeline->count)
+	{
+		if (pipeline->commands[i].args)
+		{
+			j = 0;
+			while (pipeline->commands[i].args[j])
+			{
+				free(pipeline->commands[i].args[j]);
+				j++;
+			}
+			free(pipeline->commands[i].args);
+		}
+		if (pipeline->commands[i].heredoc_delim)
+			free(pipeline->commands[i].heredoc_delim);
+		i++;
+	}
+	free(pipeline->commands);
+	free(pipeline);
+}
+
+#include "minishell.h"
+
+static pid_t	safe_fork(void)
+{
+	pid_t	pid;
+
+	pid = fork();
+	if (pid == -1)
+	{
+		perror("fork");
+		exit(EXIT_FAILURE);
+	}
+	return (pid);
+}
+
+static void	create_first_child(char *cmd[], int pipe_fd[2])
+{
+	if (dup2(pipe_fd[1], STDOUT_FILENO) == -1)
+	{
+		perror("dup2");
+		exit(EXIT_FAILURE);
+	}
+	close(pipe_fd[0]);
+	close(pipe_fd[1]);
+	execve(cmd[0], cmd, NULL);
+	perror("execve");
+	exit(EXIT_FAILURE);
+}
+
+static void	create_second_child(char *cmd[], int pipe_fd[2])
+{
+	if (dup2(pipe_fd[0], STDIN_FILENO) == -1)
+	{
+		perror("dup2");
+		exit(EXIT_FAILURE);
+	}
+	close(pipe_fd[1]);
+	close(pipe_fd[0]);
+	execve(cmd[0], cmd, NULL);
+	perror("execve");
+	exit(EXIT_FAILURE);
+}
+
+void	handle_pipe(char *cmd1[], char *cmd2[])
+{
+	int		pipe_fd[2];
+	pid_t	pid1;
+	pid_t	pid2;
+
+	if (pipe(pipe_fd) == -1)
+	{
+		perror("pipe");
+		exit(EXIT_FAILURE);
+	}
+	pid1 = safe_fork();
+	if (pid1 == 0)
+		create_first_child(cmd1, pipe_fd);
+	pid2 = safe_fork();
+	if (pid2 == 0)
+		create_second_child(cmd2, pipe_fd);
+	close(pipe_fd[0]);
+	close(pipe_fd[1]);
+	waitpid(pid1, NULL, 0);
+	waitpid(pid2, NULL, 0);
+}
+
+/*void	handle_pipe(char *cmd1[], char *cmd2[])
+{
+	int		pipe_fd[2];
+	pid_t	pid1;
+	pid_t	pid2;
+
+	if (pipe(pipe_fd) == -1)
+	{
+		perror("Erreur lors de la création du pipe");
+		exit(EXIT_FAILURE);
+	}
+	if ((pid1 = fork()) == 0)
+	{
+		close(pipe_fd[0]);
+		dup2(pipe_fd[1], STDOUT_FILENO);
+		close(pipe_fd[1]);
+		execve(cmd1[0], cmd1, NULL);
+		perror("Erreur lors de l'exécution de la commande");
+		exit(EXIT_FAILURE);
+	}
+	if ((pid2 = fork()) == 0)
+	{
+		close(pipe_fd[1]);
+		dup2(pipe_fd[0], STDIN_FILENO);
+		close(pipe_fd[0]);
+		execve(cmd2[0], cmd2, NULL);
+		perror("Erreur lors de l'exécution de la commande");
+		exit(EXIT_FAILURE);
+	}
+	close(pipe_fd[0]);
+	close(pipe_fd[1]);
+	waitpid(pid1, NULL, 0);
+	waitpid(pid2, NULL, 0);
+}*/
+
+int	handle_redirection(const char *file, int io_flag)
+{
+	int	fd;
+
+	if (io_flag == O_RDONLY)
+	{
+		fd = open(file, O_RDONLY);
+		if (fd < 0)
+		{
+			perror("Erreur lors de l'ouverture du fichier");
+			return (-1);
+		}
+		dup2(fd, STDIN_FILENO);
+	}
+	else
+	{
+		fd = open(file, io_flag, 0644);
+		if (fd < 0)
+		{
+			perror("Erreur lors de l'ouverture du fichier");
+			return (-1);
+		}
+		dup2(fd, STDOUT_FILENO);
+	}
+	close(fd);
+	return (0);
+}
+
+#include "minishell.h"
+
+static void	create_pipe_block(int i, int cmd_count, int pipe_fd[2])
+{
+	if (i < cmd_count - 1)
+	{
+		if (pipe(pipe_fd) == -1)
+		{
+			perror("pipe");
+			exit(EXIT_FAILURE);
+		}
+	}
+	else
+	{
+		pipe_fd[0] = -1;
+		pipe_fd[1] = -1;
+	}
+}
+
+static void	setup_heredoc(int i, t_pipeline *pipeline)
+{
+	int	hd_fd;
+
+	if (pipeline->commands[i].heredoc_delim != NULL)
+	{
+		hd_fd = handle_heredoc(pipeline->commands[i].heredoc_delim);
+		if (hd_fd == -1)
+		{
+			perror("heredoc");
+			exit(EXIT_FAILURE);
+		}
+		if (dup2(hd_fd, STDIN_FILENO) == -1)
+		{
+			perror("dup2 heredoc");
+			exit(EXIT_FAILURE);
+		}
+		close(hd_fd);
+	}
+}
+
+static void	setup_child(int i, int prev_fd, int pipe_fd[2],
+			t_exec_context *ctx)
+{
+	if (i != 0)
+	{
+		if (dup2(prev_fd, STDIN_FILENO) == -1)
+		{
+			perror("dup2");
+			exit(EXIT_FAILURE);
+		}
+		close(prev_fd);
+	}
+	setup_heredoc(i, ctx->pipeline);
+	if (i < ctx->cmd_count - 1)
+	{
+		if (dup2(pipe_fd[1], STDOUT_FILENO) == -1)
+		{
+			perror("dup2");
+			exit(EXIT_FAILURE);
+		}
+		close(pipe_fd[0]);
+		close(pipe_fd[1]);
+	}
+	execvp(ctx->pipeline->commands[i].args[0],
+		ctx->pipeline->commands[i].args);
+	perror("execve");
+	exit(EXIT_FAILURE);
+}
+
+static int	handle_fork_and_update(int i, int prev_fd, int pipe_fd[2],
+			t_exec_context *ctx)
+{
+	pid_t	pid;
+
+	pid = fork();
+	if (pid < 0)
+	{
+		perror("fork");
+		exit(EXIT_FAILURE);
+	}
+	if (pid == 0)
+	{
+		setup_child(i, prev_fd, pipe_fd, ctx);
+	}
+	if (prev_fd != -1)
+		close(prev_fd);
+	if (i < ctx->cmd_count - 1)
+	{
+		prev_fd = pipe_fd[0];
+		close(pipe_fd[1]);
+	}
+	waitpid(pid, NULL, 0);
+	return (prev_fd);
+}
+
+void	execute_pipeline(t_pipeline *pipeline, char **env)
+{
+	int				i;
+	int				prev_fd;
+	int				pipe_fd[2];
+	t_exec_context	ctx;
+
+	ctx.pipeline = pipeline;
+	ctx.env = env;
+	ctx.cmd_count = pipeline->count;
+	prev_fd = -1;
+	i = 0;
+	while (i < ctx.cmd_count)
+	{
+		create_pipe_block(i, ctx.cmd_count, pipe_fd);
+		prev_fd = handle_fork_and_update(i, prev_fd, pipe_fd, &ctx);
+		i++;
+	}
+	if (prev_fd != -1)
+		close(prev_fd);
+}
+
+#include "minishell.h"
+
+char	*save_text(int fd)
+{
+	char	*temp;
+	char	*content;
+
+	temp = " ";
+	while (temp)
+	{
+		temp = get_next_line(fd);
+		if (temp)
+			content = join_and_free(content, temp);
+		free(temp);
+	}
+	return (content);
+}
+
+int	count_strings(char **strs)
+{
+	int	i;
+
+	i = 0;
+	while (strs[i])
+		i++;
+	return (i);
+}
+
+char	**get_lines(char **envp)
+{
+	int		i;
+	int		size;
+	char	**lines;
+
+	i = 0;
+	size = count_strings(envp);
+	lines = (char **)malloc(sizeof(char *) * (size + 1));
+	if (!lines)
+		return (NULL);
+	while (i < size)
+	{
+		lines[i] = ft_strdup(envp[i]);
+		i++;
+	}
+	lines[i] = NULL;
+	return (lines);
+}
+
+char	**get_var_names(char **envp)
+{
+	int		i;
+	int		j;
+	int		size;
+	char	**var_names;
+
+	i = 0;
+	size = count_strings(envp);
+	var_names = (char **)malloc(sizeof(char *) * (size + 1));
+	while (i < size)
+	{
+		j = 0;
+		while (envp[i][j] && envp[i][j] != '=')
+			j++;
+		var_names[i] = ft_strndup(envp[i], j);
+		i++;
+	}
+	var_names[i] = NULL;
+	return (var_names);
+}
+
+char	**get_lines_export(char **envp)
+{
+	int		i;
+	int		size;
+	char	**vars;
+
+	i = 0;
+	size = count_strings(envp);
+	vars = (char **)malloc(sizeof(char *) * (size + 1));
+	while (i < size)
+	{
+		vars[i] = copy_line_with_quotes(envp[i]);
+		i++;
+	}
+	vars[i] = NULL;
+	return (vars);
+}
+
+#include "minishell.h"
+
+int	redirect_file(const char *target, int std_fd, int flags, int mode)
+{
+	int	fd;
+
+	fd = open(target, flags, mode);
+	if (fd < 0)
+	{
+		perror("open");
+		return (-1);
+	}
+	if (dup2(fd, std_fd) == -1)
+	{
+		perror("dup2");
+		close(fd);
+		return (-1);
+	}
+	close(fd);
+	return (0);
+}
+
+#include "minishell.h"
+
+int	count_occurrences2(const char *str, char *to_find)
+{
+	int	i;
+	int	count;
+
+	i = 0;
+	count = 0;
+	while (str[i])
+	{
+		if (ft_strncmp(str + i, to_find, ft_strlen(to_find)) == 0)
+			count++;
+		i++;
+	}
+	return (count);
+}
+
+int	calculate_size_for_replace(const char *str, char *a, char *b)
+{
+	int		difference;
+	int		length;
+
+	difference = (ft_strlen(b) - ft_strlen(a)) * count_occurrences2(str, a);
+	length = ft_strlen(str) + difference;
+	return (length);
+}
+
+char	*replace(const char *str, char *a, char *b)
+{
+	int		i;
+	int		size;
+	int		total_size;
+	char	*new_string;
+
+	i = 0;
+	total_size = calculate_size_for_replace(str, a, b);
+	new_string = (char *)malloc(sizeof(char) * total_size + 1);
+	if (!new_string)
+		return (NULL);
+	while (*str)
+	{
+		if (ft_strncmp(str, a, ft_strlen(a)) == 0)
+		{
+			size = 0;
+			while (b[size])
+				new_string[i++] = b[size++];
+			str += ft_strlen(a);
+		}
+		else
+			new_string[i++] = *str++;
+	}
+	new_string[i] = 0;
+	return (new_string);
+}
+
+#include "minishell.h"
+
+void	handle_sigint(int sig)
+{
+	(void)sig;
+	write(1, "\n\033[0;32mminishell> \033[0m", 23);
+}
+
+void	handle_sigquit(int sig)
+{
+	(void)sig;
+	write(1, "\b\b \b\b", 6);
+}
+
+void	setup_signal(void)
+{
+	signal(SIGINT, handle_sigint);
+	signal(SIGQUIT, handle_sigquit);
+}
+
+#include "minishell.h"
+
+char	*ft_strcpy(char *dest, const char *src)
+{
+	int	i;
+
+	i = 0;
+	while (src[i])
+	{
+		dest[i] = src[i];
+		i++;
+	}
+	dest[i] = 0;
+	return (dest);
+}
+
+int	ft_strcmp(const char *s1, const char *s2)
+{
+	int	i;
+
+	i = 0;
+	while (s1[i] && s1[i] == s2[i])
+		i++;
+	return (s1[i] - s2[i]);
+}
+
+int	count_occurrences(const char *cmd_line, int to_find)
+{
+	int	i;
+	int	count;
+
+	i = 0;
+	count = 0;
+	while (cmd_line[i])
+	{
+		if (cmd_line[i] == to_find)
+			count++;
+		i++;
+	}
+	return (count);
+}
+
+int	count_words(const char *str)
+{
+	int	i;
+	int	count;
+
+	i = 0;
+	count = 0;
+	if (str[0] != 0 && str[0] != ' ')
+	{
+		i++;
+		count++;
+	}
+	while (str[i])
+	{
+		if (str[i] == ' ' && (str[i + 1] != 0 && str[i + 1] != ' '))
+			count++;
+		i++;
+	}
+	return (count);
+}
+
+char	*ft_strndup(const char *src, size_t n)
+{
+	size_t	i;
+	char	*dest;
+
+	i = 0;
+	dest = (char *)malloc(sizeof(char) * (n + 1));
+	if (!dest)
+		return (NULL);
+	while (src[i] && i < n)
+	{
+		dest[i] = src[i];
+		i++;
+	}
+	dest[i] = 0;
+	return (dest);
+}
+
+#include "minishell.h"
+
+void	write_env(t_list *lst)
+{
+	t_list	*temp;
+
+	temp = lst;
+	while (temp)
+	{
+		ft_printf("%s\n", temp->content);
+		temp = temp->next;
+	}
+}
+
+int	calculate_total_size(int size, char **strs, char *sep)
+{
+	int	i;
+	int	total_size;
+
+	i = 0;
+	total_size = 0;
+	while (i < size)
+	{
+		total_size += ft_strlen(strs[i]);
+		if (i < size - 1)
+			total_size += ft_strlen(sep);
+		i++;
+	}
+	return (total_size);
+}
+
+char	*ft_strjoin2(int size, char **strs, char *sep)
+{
+	int		i;
+	int		j;
+	int		total_size;
+	char	*new_string;
+
+	i = 0;
+	j = 0;
+	total_size = calculate_total_size(size, strs, sep);
+	new_string = (char *)malloc(sizeof(char) * total_size + 1);
+	if (!new_string)
+		return (NULL);
+	while (i < size)
+	{
+		ft_strcpy(new_string + j, strs[i]);
+		j += ft_strlen(strs[i]);
+		if (i < size - 1)
+		{
+			ft_strcpy(new_string + j, sep);
+			j += ft_strlen(sep);
+		}
+		i++;
+	}
+	new_string[total_size] = 0;
+	return (new_string);
+}
+
+char	*copy_line_with_quotes(char *src)
+{
+	int		i;
+	int		j;
+	char	*dest;
+
+	i = 0;
+	j = 0;
+	dest = (char *)malloc(sizeof(char) * (ft_strlen(src) + 3));
+	if (!dest)
+		return (NULL);
+	while (src[i] && src[i] != '=')
+		dest[j++] = src[i++];
+	if (src[i] == '=')
+		dest[j++] = src[i++];
+	dest[j++] = '"';
+	while (src[i])
+		dest[j++] = src[i++];
+	dest[j++] = '"';
+	dest[j] = 0;
+	return (dest);
+}
+
+
+#ifndef MINISHELL_H
+# define MINISHELL_H
+# define MAX_ARGS 64
+# include <readline/readline.h>
+# include <readline/history.h>
+# include <string.h>
+# include <linux/limits.h>
+# include <signal.h>
+# include <sys/wait.h>
+# include "libft/libft.h"
+
+typedef struct s_command
+{
+	char	**args;
+	char	*heredoc_delim;
+}	t_command;
+
+
+typedef struct s_pipeline
+{
+	t_command	*commands;
+	int			count;
+}	t_pipeline;
+
+typedef struct s_exec_context
+{
+	t_pipeline	*pipeline;
+	char		**env;
+	int			cmd_count;
+}	t_exec_context;
+
+typedef struct s_shell
+{
+	int		shlvl;
+	char	*path;
+	char	*pwd;
+	char	*old_pwd;
+	char	**splitted_path;
+	char	**export;
+	char	**var_names;
+	t_list	*env_lines;
+	t_list	*export_lines;
+	t_list	*vars;
+}	t_shell;
+
+typedef struct s_prompt
+{
+	char	*cmd_line;
+	char	*echo;
+	char	**strs;
+}	t_prompt;
+
+typedef enum e_state
+{
+	STATE_DEFAULT,
+	STATE_IN_SINGLE,
+	STATE_IN_DOUBLE,
+	STATE_ESCAPING
+}				t_state;
+
+int			handle_heredoc(const char *delimiter);
+t_pipeline	*parse_input(const char *line);
+void		free_pipeline(t_pipeline *pipeline);
+void		execute_pipeline(t_pipeline *pipeline, char **env);
+int			adv_handle_redirect(const char *target, const char *op, int std_fd);
+int			handle_redirection_char(const char *file, const char *op);
+int			redirect_file(const char *target, int std_fd, int flags, int mode);
+int			handle_heredoc(const char *delimiter);
+void		setup_signal(void);
+void		handle_sigint(int sig);
+void		handle_sigquit(int sig);
+char		**advanced_tokenize(const char *line);
+void 		execute_command(char *cmd, int in_fd, int out_fd);
+void 		execute_pipes(char *input);
+
+int			calculate_size_for_replace(const char *str, char *a, char *b);
+int			calculate_total_size(int size, char **strs, char *sep);
+int			check_path_validity(char *cmd);
+void		copy_env(t_list **lst, char **envp);
+void		copy_export(t_shell *shell);
+char		*copy_line_with_quotes(char *src);
+int			count_occurrences(const char *cmd_line, int to_find);
+int			count_occurrences2(const char *str, char *to_find);
+int			count_quotes(const char *cmd_line);
+int			count_strings(char **strs);
+int			count_words(const char *str);
+void		display_echo(t_prompt *prompt);
+void		display_history(void);
+void		exec_cd(t_shell *shell, t_prompt *prompt);
+char		*exec_echo(char *cmd_line, char **strs);
+void		exec_export(t_shell *shell, t_prompt *prompt);
+void		exec_unset(t_shell *shell, t_prompt *prompt);
+int			existing_command(char **paths, char *cmd);
+void		execute_builtin(t_shell *shell, t_prompt *prompt);
+void		find_env_line(t_shell *shell, char *var, t_list **lst);
+char		*find_path_line(char **envp);
+char		*find_third_word(const char *cmd_line);
+char		*first_word(char *str);
+void		free_2d_array(char **strs);
+void		free_prompt(t_prompt *prompt);
+void		free_terminal(t_shell *shell);
+char		*ft_strcpy(char *dest, const char *src);
+int			ft_strcmp(const char *s1, const char *s2);
+char		*ft_strjoin2(int size, char **strs, char *sep);
+char		*ft_strndup(const char *src, size_t n);
+void		ft_swap(char **s1, char **s2);
+char		**get_lines_export(char **envp);
+char		**get_lines(char **envp);
+char		*get_pwd(char **envp);
+int			get_shell_level(char **envp);
+char		**get_var_names(char **envp);
+void		handle_pipe(char *cmd1[], char *cmd2[]);
+int			handle_redirection(const char *file, int io_flag);
+t_shell		*init_shell(char **envp);
+char		*join_strings(char **strs);
+char		**parse_echo(t_prompt *prompt);
+void		parse_command_line(char *line);
+t_prompt	*init_prompt(const char *buffer);
+char		*replace(const char *str, char *a, char *b);
+void		remove_line(t_list **lst, char *line);
+char		*save_text(int fd);
+void		sort_strings(char **envp, int size);
+char		**split_path(char **envp);
+void		update_paths(t_shell *shell, t_list *lst);
+void		update_paths_export(t_shell *shell, t_list *lst);
+void		verif_history(const char *input);
+void		write_env(t_list *lst);
+
+#endif
+
+
+//////////
+
+CC = cc
+
+CFLAGS = -Wall -Wextra -Werror
+
+NAME = minishell
+
+RM = rm -f
+
+SRCS = adv_tokeniser.c \
+	advanced_redirection.c \
+	append_char.c \
+	check_command_line.c \
+	exec_echo.c \
+	exec_export.c \
+	exec_unset.c \
+	free_terminal.c \
+	get_env_paths.c \
+	handle_paths.c \
+	handle_strings.c \
+	heredoc.c \
+	history.c \
+	minishell.c \
+	new_terminal.c \
+	parse_command_line.c \
+	parser.c \
+	pipe_handling.c \
+	pipeline.c \
+	read_content.c \
+	redirect_file.c \
+	replace.c \
+	signal.c \
+	string_utils.c \
+	write_content.c
+
+OBJS = $(SRCS:.c=.o)
+
+LIBFT = libft/libft.a
+
+$(NAME): $(OBJS) $(LIBFT)
+	$(CC) $(CFLAGS) $(OBJS) -o $(NAME) libft/libft.a -lreadline
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(LIBFT):
+	make -C libft/
+
+all: $(NAME)
+
+clean:
+	$(RM) $(OBJS)
+	make clean -C libft/
+
+fclean: clean
+	$(RM) $(NAME)
+
+re: fclean all
+
+.PHONY: all clean fclean re
+

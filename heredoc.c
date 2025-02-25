@@ -1,31 +1,41 @@
 /* ************************************************************************** */
 /*                                                                            */
 /*                                                        :::      ::::::::   */
-/*   signal.c                                           :+:      :+:    :+:   */
+/*   heredoc.c                                          :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
 /*   By: qacjl <qacjl@student.42.fr>                +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2025/02/09 16:16:58 by qacjl             #+#    #+#             */
-/*   Updated: 2025/02/19 16:37:20 by qacjl            ###   ########.fr       */
+/*   Created: 2025/02/17 03:04:07 by qacjl             #+#    #+#             */
+/*   Updated: 2025/02/17 03:06:27 by qacjl            ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "minishell.h"
 
-void	handle_sigint(int sig)
+int	handle_heredoc(const char *delimiter)
 {
-	(void)sig;
-	write(1, "\n\033[0;32mminishell> \033[0m", 23);
-}
+	int		pipe_fd[2];
+	char	*line;
 
-void	handle_sigquit(int sig)
-{
-	(void)sig;
-	write(1, "\b\b \b\b", 6);
-}
-
-void	setup_signal(void)
-{
-	signal(SIGINT, handle_sigint);
-	signal(SIGQUIT, handle_sigquit);
+	if (pipe(pipe_fd) == -1)
+	{
+		perror("pipe");
+		return (-1);
+	}
+	while (1)
+	{
+		line = readline("heredoc> ");
+		if (!line)
+			break ;
+		if (strcmp(line, delimiter) == 0)
+		{
+			free(line);
+			break ;
+		}
+		write(pipe_fd[1], line, strlen(line));
+		write(pipe_fd[1], "\n", 1);
+		free(line);
+	}
+	close(pipe_fd[1]);
+	return (pipe_fd[0]);
 }

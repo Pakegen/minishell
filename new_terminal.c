@@ -6,7 +6,7 @@
 /*   By: axbaudri <axbaudri@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/12/13 15:09:19 by axbaudri          #+#    #+#             */
-/*   Updated: 2025/02/07 12:48:34 by axbaudri         ###   ########.fr       */
+/*   Updated: 2025/02/14 16:01:18 by axbaudri         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -22,15 +22,32 @@ t_shell	*init_shell(char **envp)
 	shell->path = find_path_line(envp);
 	shell->old_pwd = get_pwd(envp);
 	shell->pwd = get_pwd(envp);
-	shell->splitted_path = ft_split(shell->path, ':');
-	shell->env = get_lines(envp);
-	shell->export = get_lines(envp);
+	shell->splitted_path = split_path(envp);
+	shell->shlvl = get_shell_level(envp);
+	shell->env_lines = NULL;
+	copy_env(&shell->env_lines, envp);
+	shell->export = get_lines_export(envp);
 	sort_strings(shell->export, count_strings(envp));
+	copy_export(shell);
 	shell->var_names = get_var_names(envp);
+	shell->vars = NULL;
+	copy_env(&shell->vars, shell->var_names);
 	return (shell);
 }
 
-t_prompt	*parse_prompt(const char *buffer)
+// echo "salut commment ca" va mon "amis"
+
+/*
+	char **cmd;
+
+	cmd[0] = echo;
+	cmd[0] = salut comment ca;
+	cmd[0] = va;
+	cmd[0] = mon;
+	cmd[0] = amis;
+*/
+
+t_prompt	*init_prompt(const char *buffer)
 {
 	t_prompt	*prompt;
 
@@ -42,26 +59,31 @@ t_prompt	*parse_prompt(const char *buffer)
 	return (prompt);
 }
 
-char	*find_path_line(char **envp)
+void	copy_env(t_list **lst, char **envp)
 {
+	t_list	*new;
 	int		i;
-	char	*path_line;
 
 	i = 0;
-	while (ft_strncmp(envp[i], "PATH=", 5) != 0)
+	while (envp[i])
+	{
+		new = ft_lstnew(ft_strdup(envp[i]));
+		ft_lstadd_back(lst, new);
 		i++;
-	path_line = ft_strdup(envp[i] + 5);
-	return (path_line);
+	}
 }
 
-char	*get_pwd(char **envp)
+void	copy_export(t_shell *shell)
 {
+	t_list	*new;
 	int		i;
-	char	*path;
 
+	shell->export_lines = NULL;
 	i = 0;
-	while (ft_strncmp(envp[i], "PWD=", 4) != 0)
+	while (shell->export[i + 1])
+	{
+		new = ft_lstnew(ft_strdup(shell->export[i]));
+		ft_lstadd_back(&shell->export_lines, new);
 		i++;
-	path = ft_strdup(envp[i] + 4);
-	return (path);
+	}
 }

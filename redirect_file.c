@@ -1,31 +1,33 @@
 /* ************************************************************************** */
 /*                                                                            */
 /*                                                        :::      ::::::::   */
-/*   signal.c                                           :+:      :+:    :+:   */
+/*   redirect_file.c                                    :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
 /*   By: qacjl <qacjl@student.42.fr>                +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2025/02/09 16:16:58 by qacjl             #+#    #+#             */
-/*   Updated: 2025/02/19 16:37:20 by qacjl            ###   ########.fr       */
+/*   Created: 2025/02/17 02:42:33 by qacjl             #+#    #+#             */
+/*   Updated: 2025/02/17 02:43:47 by qacjl            ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "minishell.h"
 
-void	handle_sigint(int sig)
+int	redirect_file(const char *target, int std_fd, int flags, int mode)
 {
-	(void)sig;
-	write(1, "\n\033[0;32mminishell> \033[0m", 23);
-}
+	int	fd;
 
-void	handle_sigquit(int sig)
-{
-	(void)sig;
-	write(1, "\b\b \b\b", 6);
-}
-
-void	setup_signal(void)
-{
-	signal(SIGINT, handle_sigint);
-	signal(SIGQUIT, handle_sigquit);
+	fd = open(target, flags, mode);
+	if (fd < 0)
+	{
+		perror("open");
+		return (-1);
+	}
+	if (dup2(fd, std_fd) == -1)
+	{
+		perror("dup2");
+		close(fd);
+		return (-1);
+	}
+	close(fd);
+	return (0);
 }

@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   minishell.c                                        :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: quenalla <quenalla@student.42.fr>          +#+  +:+       +#+        */
+/*   By: axbaudri <axbaudri@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/12/12 12:43:52 by axbaudri          #+#    #+#             */
-/*   Updated: 2025/02/10 14:25:38 by quenalla         ###   ########.fr       */
+/*   Updated: 2025/02/19 15:49:04 by axbaudri         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -14,30 +14,31 @@
 
 void	display_echo(t_prompt *prompt)
 {
-	char	**strs;
-
-	prompt->echo = exec_echo(prompt->cmd_line, prompt->strs);
+	if (prompt->strs[1] && ft_strcmp(prompt->strs[1], "-n") == 0)
 	{
-		strs = parse_echo(prompt);
-		ft_printf("join strings = %s\n", join_strings(strs));
+		prompt->echo = exec_echo(prompt->cmd_line, prompt->strs);
 		ft_printf("%s", prompt->echo);
+		free(prompt->echo);
 	}
-	free(prompt->echo);
 }
 
-void	execute_command(t_shell *shell, t_prompt *prompt)
+void	exec_exit(void)
 {
-	if (!ft_strlen(prompt->cmd_line))
+	write(2, "exit\n", 5);
+	exit(1);
+}
+
+void	execute_builtin(t_shell *shell, t_prompt *prompt)
+{
+	if (!ft_strlen(prompt->cmd_line) || !count_strings(prompt->strs))
 		ft_printf("");
-	else if (ft_strcmp(prompt->strs[0], "echo") == 0
-		&& ft_strcmp(prompt->strs[1], "-n") == 0)
+	else if (ft_strcmp(prompt->strs[0], "echo") == 0)
 		display_echo(prompt);
-	else if (ft_strcmp(prompt->strs[0], "export") == 0
-		&& count_words(prompt->cmd_line) == 1)
-		write_env(shell->export, prompt);
+	else if (ft_strcmp(prompt->strs[0], "export") == 0)
+		exec_export(shell, prompt);
 	else if (ft_strcmp(prompt->strs[0], "env") == 0
 		&& count_words(prompt->cmd_line) == 1)
-		write_env(shell->env, prompt);
+		write_env(shell->env_lines);
 	else if (ft_strcmp(prompt->strs[0], "cd") == 0
 		&& count_strings(prompt->strs) == 2)
 		exec_cd(shell, prompt);
@@ -49,39 +50,37 @@ void	execute_command(t_shell *shell, t_prompt *prompt)
 		exec_unset(shell, prompt);
 	else if (ft_strcmp(prompt->strs[0], "exit") == 0
 		&& count_words(prompt->cmd_line) == 1)
-		exit(1);
-	else
+		exec_exit();
+	else if (!existing_command(shell->splitted_path, prompt->strs[0])
+		&& ft_strcmp(prompt->strs[0], "history") != 0)
 		ft_printf("command not found: %s\n", prompt->strs[0]);
 }
 
-int	main(int argc, char **argv, char **envp)
+int	main(int argc, char **argv, char **env)
 {
-	t_shell		*shell;
-	t_prompt	*prompt;
-	const char	*buffer;
+	char		*line;
+	t_pipeline	*pipeline;
 
-	//setup_signal();
+	(void)argc;
 	(void)argv;
-	if (argc == 1)
+	setup_signal();
+	while (1)
 	{
-		shell = init_shell(envp);
-		buffer = readline("\033[0;36m> \033[0m");
-		while (buffer)
+		line = readline("minishell> ");
+		if (!line)
 		{
-			prompt = parse_prompt(buffer);
-			execute_command(shell, prompt);
-			free_prompt(prompt);
-			buffer = readline("\033[0;36m> \033[0m");
-			/*
-			if (!buffer)
-			{
-				write(2, "exit\n", 5);
-				break ;
-			}
-			*/
+			write(1, "exit\n", 5);
+			break ;
 		}
-		free_prompt(prompt);
-		free_terminal(shell);
+		if (line[0] != '\0')
+			add_history(line);
+		pipeline = parse_input(line);
+		if (pipeline)
+		{
+			execute_pipeline(pipeline, env);
+			free_pipeline(pipeline);
+		}
+		free(line);
 	}
 	return (0);
 }
@@ -89,15 +88,46 @@ int	main(int argc, char **argv, char **envp)
 /*int	main(int argc, char **argv, char **envp)
 {
 	t_shell		*shell;
-	int i = 0;
+	t_prompt	*prompt;
+	const char	*buffer;
 
+	setup_signal();
+	(void)argc;
 	(void)argv;
-	if (argc == 1)
+	shell = init_shell(envp);
+	while (1)
 	{
-		shell = init_shell(envp);
-		while (shell->var_names[i])
-			ft_printf("%s\n", shell->var_names[i++]);
-		free_terminal(shell);
+		buffer = readline("\033[0;32mminishell> \033[0m");
+		if (!buffer)
+		{
+			write(2, "exit\n", 5);
+			break ;
+		}
+		add_history(buffer);
+		verif_history(buffer);
+		prompt = init_prompt(buffer);
+		execute_builtin(shell, prompt);
+		free_prompt(prompt);
 	}
+	free_terminal(shell);
+	return (0);
+}*/
+
+/*int	main(int argc, char **argv, char **envp)
+{
+	t_shell		*shell;
+	t_list		*temp;
+
+	setup_signal();
+	(void)argc;
+	(void)argv;
+	shell = init_shell(envp);
+	temp = shell->vars;
+	while (temp)
+	{
+		ft_printf("temp->content = %s\n", temp->content);
+		temp = temp->next;
+	}
+	free_terminal(shell);
 	return (0);
 }*/

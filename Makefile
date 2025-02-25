@@ -6,7 +6,7 @@
 #    By: axbaudri <axbaudri@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/12/12 13:47:59 by axbaudri          #+#    #+#              #
-#    Updated: 2025/02/07 15:55:56 by axbaudri         ###   ########.fr        #
+#    Updated: 2025/02/18 18:26:03 by axbaudri         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -18,16 +18,29 @@ NAME = minishell
 
 RM = rm -f
 
-SRCS = check_command_line.c \
+SRCS = adv_tokeniser.c \
+	advanced_redirection.c \
+	append_char.c \
+	check_command_line.c \
 	exec_echo.c \
+	exec_export.c \
+	exec_unset.c \
 	free_terminal.c \
+	get_env_paths.c \
 	handle_paths.c \
 	handle_strings.c \
+	heredoc.c \
+	history.c \
 	minishell.c \
 	new_terminal.c \
-	pipex.c \
+	parse_command_line.c \
+	parser.c \
+	pipe_handling.c \
+	pipeline.c \
 	read_content.c \
+	redirect_file.c \
 	replace.c \
+	signal.c \
 	string_utils.c \
 	write_content.c
 

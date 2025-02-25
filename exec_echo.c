@@ -6,7 +6,7 @@
 /*   By: axbaudri <axbaudri@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/02/06 18:05:39 by axbaudri          #+#    #+#             */
-/*   Updated: 2025/02/07 12:46:54 by axbaudri         ###   ########.fr       */
+/*   Updated: 2025/02/10 19:43:31 by axbaudri         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -45,9 +45,9 @@ void	check_each_string(char *echo, char **strs, int quote)
 		{
 			if (count % 2 == 0)
 			{
+				i += ft_strlen(strs[j]);
 				splitted_str = ft_split(strs[j], ' ');
-				free(strs[j]);
-				strs[j] = ft_strjoin2(count_words(strs[j]), splitted_str, " ");
+				strs[j] = ft_strjoin2(count_words(strs[j]), splitted_str, " - ");
 				free_2d_array(splitted_str);
 			}
 			j++;
@@ -60,13 +60,9 @@ char	**parse_echo(t_prompt *prompt)
 {
 	char	**strs;
 	int		i;
-	int		j;
-	int		number_of_quotes;
 	int		quote;
 
 	i = 0;
-	j = 0;
-	number_of_quotes = count_quotes(prompt->echo);
 	while (prompt->echo[i] && prompt->echo[i] != '\'' && prompt->echo[i] != '"')
 		i++;
 	if (prompt->echo[i] == '\'')
@@ -80,14 +76,12 @@ char	**parse_echo(t_prompt *prompt)
 
 char	*exec_echo(char *cmd_line, char **strs)
 {
-	int		i;
 	char	*echo;
 
-	i = 0;
 	if (!count_quotes(cmd_line))
 		echo = ft_strjoin2(count_words(cmd_line) - 2, strs + 2, " ");
 	else if (count_quotes(cmd_line) % 2 == 1)
-		echo = ft_strdup("Error");
+		echo = ft_strdup("Error\n");
 	else
 		echo = find_third_word(cmd_line);
 	return (echo);

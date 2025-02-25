@@ -1,31 +1,31 @@
 /* ************************************************************************** */
 /*                                                                            */
 /*                                                        :::      ::::::::   */
-/*   signal.c                                           :+:      :+:    :+:   */
+/*   parse_command_line.c                               :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
 /*   By: qacjl <qacjl@student.42.fr>                +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2025/02/09 16:16:58 by qacjl             #+#    #+#             */
-/*   Updated: 2025/02/19 16:37:20 by qacjl            ###   ########.fr       */
+/*   Created: 2025/02/10 19:54:44 by axbaudri          #+#    #+#             */
+/*   Updated: 2025/02/19 16:21:36 by qacjl            ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "minishell.h"
 
-void	handle_sigint(int sig)
+int	is_valid(char *cmd_line)
 {
-	(void)sig;
-	write(1, "\n\033[0;32mminishell> \033[0m", 23);
-}
+	int	i;
+	int	s_quote_count;
+	int	d_quote_count;
 
-void	handle_sigquit(int sig)
-{
-	(void)sig;
-	write(1, "\b\b \b\b", 6);
-}
-
-void	setup_signal(void)
-{
-	signal(SIGINT, handle_sigint);
-	signal(SIGQUIT, handle_sigquit);
+	i = 0;
+	s_quote_count = count_occurrences(cmd_line, '\'');
+	d_quote_count = count_occurrences(cmd_line, '"');
+	if (s_quote_count % 2 == 1 || d_quote_count % 2 == 1)
+		return (0);
+	while (cmd_line[i])
+	{
+		
+	}
+	return (1);
 }

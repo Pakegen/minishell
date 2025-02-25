@@ -1,33 +1,42 @@
 /* ************************************************************************** */
 /*                                                                            */
 /*                                                        :::      ::::::::   */
-/*   ft_lstdelone.c                                     :+:      :+:    :+:   */
+/*   append_char.c                                      :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
 /*   By: axbaudri <axbaudri@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2024/03/14 19:26:57 by axbaudri          #+#    #+#             */
-/*   Updated: 2025/02/14 11:44:27 by axbaudri         ###   ########.fr       */
+/*   Created: 2025/02/17 03:58:52 by qacjl             #+#    #+#             */
+/*   Updated: 2025/02/19 15:13:47 by axbaudri         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
-#include "libft.h"
+/*
+//lier adv_tokeniser
+#include "minishell.h"
 
-void	ft_lstdelone(t_list *lst, void (*del)(void *))
+char	*append_char(char *str, char c)
 {
-	t_list *tmp;
+	size_t	len;
+	char	*new_str;
+	size_t	i;
 
-	if (!lst || !del)
-		return ;
-	tmp = lst->next->next;
-	del(&lst->next->content);
-	free(lst->next);
-	lst->next = tmp;
+	if (str)
+		len = ft_strlen(str);
+	else
+		len = 0;
+	new_str = malloc(len + 2);
+	if (!new_str)
+		return (NULL);
+	i = 0;
+	while (str && str[i])
+	{
+		new_str[i] = str[i];
+		i++;
+	}
+	new_str[i] = c;
+	new_str[i + 1] = '\0';
+	if (str)
+		free(str);
+	return (new_str);
 }
-
-/*void	ft_lstdelone(t_list *lst, void (*del)(void *))
-{
-	if (!lst || !del)
-		return ;
-	del(lst->content);
-	free(lst);
-}*/
+*/

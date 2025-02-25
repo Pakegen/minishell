@@ -6,7 +6,7 @@
 /*   By: axbaudri <axbaudri@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/02/04 18:07:10 by axbaudri          #+#    #+#             */
-/*   Updated: 2025/02/06 14:30:58 by axbaudri         ###   ########.fr       */
+/*   Updated: 2025/02/19 15:57:46 by axbaudri         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -17,7 +17,7 @@ void	exec_cd(t_shell *shell, t_prompt *prompt)
 	char	buffer[PATH_MAX];
 
 	if (chdir(prompt->strs[1]) != 0)
-		ft_putstr_fd("cd command failed\n", 2);
+		ft_printf("cd: no such file or directory: %s\n", prompt->strs[1]);
 	else
 	{
 		if (ft_strcmp(shell->old_pwd, shell->pwd) != 0)
@@ -29,39 +29,54 @@ void	exec_cd(t_shell *shell, t_prompt *prompt)
 		free(shell->pwd);
 		shell->pwd = ft_strdup(buffer);
 	}
-	update_paths(shell, shell->env);
-	update_paths(shell, shell->export);
+	update_paths(shell, shell->env_lines);
+	update_paths_export(shell, shell->export_lines);
 }
 
-void	update_paths(t_shell *shell, char **envp)
+void	update_paths(t_shell *shell, t_list *lst)
 {
-	int	i;
+	t_list	*temp;
 
-	i = 0;
-	while (envp[i])
+	temp = lst;
+	while (temp)
 	{
-		if (ft_strncmp(envp[i], "OLDPWD=", 7) == 0)
+		if (ft_strncmp(temp->content, "OLDPWD=", 7) == 0)
 		{
-			free(envp[i]);
-			envp[i] = ft_strjoin("OLDPWD=", shell->old_pwd);
+			free(temp->content);
+			temp->content = ft_strjoin("OLDPWD=", shell->old_pwd);
 		}
-		else if (ft_strncmp(envp[i], "PWD=", 4) == 0)
+		else if (ft_strncmp(temp->content, "PWD=", 4) == 0)
 		{
-			free(envp[i]);
-			envp[i] = ft_strjoin("PWD=", shell->pwd);
+			free(temp->content);
+			temp->content = ft_strjoin("PWD=", shell->pwd);
 		}
-		i++;
+		temp = temp->next;
 	}
 }
 
-/*void exec_cd(t_shell *shell, t_prompt *prompt)
+void	update_paths_export(t_shell *shell, t_list *lst)
 {
-	char buffer[PATH_MAX];
+	t_list	*temp;
+	char	*line;
 
-	if (chdir(prompt->strs[1]) == 0) {
-		getcwd(buffer, sizeof(buffer));
-		shell->pwd = ft_strdup(buffer);
-	} else {
-		perror("cd");
+	temp = lst;
+	line = NULL;
+	while (temp)
+	{
+		if (ft_strncmp(temp->content, "OLDPWD=", 7) == 0)
+		{
+			free(temp->content);
+			line = ft_strjoin("OLDPWD=", shell->old_pwd);
+			temp->content = copy_line_with_quotes(line);
+			free(line);
+		}
+		else if (ft_strncmp(temp->content, "PWD=", 4) == 0)
+		{
+			free(temp->content);
+			line = ft_strjoin("PWD=", shell->pwd);
+			temp->content = copy_line_with_quotes(line);
+			free(line);
+		}
+		temp = temp->next;
 	}
-}*/
+}
