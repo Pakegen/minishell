@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   parser.c                                           :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: qacjl <qacjl@student.42.fr>                +#+  +:+       +#+        */
+/*   By: quenalla <quenalla@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/02/17 03:43:22 by qacjl             #+#    #+#             */
-/*   Updated: 2025/02/24 13:57:48 by qacjl            ###   ########.fr       */
+/*   Updated: 2025/02/25 16:22:30 by quenalla         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -157,7 +157,7 @@ t_pipeline	*parse_input(const char *line)
 	char		**raw_cmds;
 	int			count;
 	int			i;
-	char	*expanded_line;
+	char		*expanded_line;
 
 	expanded_line = expand_variables(line);
 	raw_cmds = ft_split(expanded_line, '|');

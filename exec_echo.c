@@ -3,29 +3,14 @@
 /*                                                        :::      ::::::::   */
 /*   exec_echo.c                                        :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: axbaudri <axbaudri@student.42.fr>          +#+  +:+       +#+        */
+/*   By: quenalla <quenalla@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/02/06 18:05:39 by axbaudri          #+#    #+#             */
-/*   Updated: 2025/02/10 19:43:31 by axbaudri         ###   ########.fr       */
+/*   Updated: 2025/02/25 16:41:44 by quenalla         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "minishell.h"
-
-/*char	**parse_echo(t_prompt *prompt)
-{
-	char	**strs;
-	int		i;
-
-	i = 0;
-	while (prompt->echo[i] && prompt->echo[i] != '\'' && prompt->echo[i] != '"')
-		i++;
-	if (prompt->echo[i] == '\'')
-		strs = ft_split(prompt->echo, '\'');
-	else
-		strs = ft_split(prompt->echo, '"');
-	return (strs);
-}*/
 
 void	check_each_string(char *echo, char **strs, int quote)
 {
@@ -47,7 +32,8 @@ void	check_each_string(char *echo, char **strs, int quote)
 			{
 				i += ft_strlen(strs[j]);
 				splitted_str = ft_split(strs[j], ' ');
-				strs[j] = ft_strjoin2(count_words(strs[j]), splitted_str, " - ");
+				strs[j] = ft_strjoin2(count_words(strs[j]), 
+						splitted_str, " - ");
 				free_2d_array(splitted_str);
 			}
 			j++;

@@ -6,7 +6,7 @@
 /*   By: quenalla <quenalla@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/02/12 14:30:07 by quenalla          #+#    #+#             */
-/*   Updated: 2025/02/12 15:55:26 by quenalla         ###   ########.fr       */
+/*   Updated: 2025/02/25 16:40:46 by quenalla         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -22,7 +22,7 @@ char	*ft_strtok(char *str, const char *delims)
 	while (str[i])
 	{
 		
-	}
+	}//a voir 
 }
 
 void	execute_command(char *cmd, int in_fd, int out_fd)

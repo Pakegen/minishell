@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   minishell.h                                        :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: axbaudri <axbaudri@student.42.fr>          +#+  +:+       +#+        */
+/*   By: quenalla <quenalla@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/12/12 12:43:55 by axbaudri          #+#    #+#             */
-/*   Updated: 2025/02/19 15:49:11 by axbaudri         ###   ########.fr       */
+/*   Updated: 2025/02/25 15:15:02 by quenalla         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -82,8 +82,8 @@ void		setup_signal(void);
 void		handle_sigint(int sig);
 void		handle_sigquit(int sig);
 char		**advanced_tokenize(const char *line);
-void 		execute_command(char *cmd, int in_fd, int out_fd);
-void 		execute_pipes(char *input);
+void		execute_command(char *cmd, int in_fd, int out_fd);
+void		execute_pipes(char *input);
 
 int			calculate_size_for_replace(const char *str, char *a, char *b);
 int			calculate_total_size(int size, char **strs, char *sep);

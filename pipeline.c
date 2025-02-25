@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   pipeline.c                                         :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: qacjl <qacjl@student.42.fr>                +#+  +:+       +#+        */
+/*   By: quenalla <quenalla@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/02/17 03:16:43 by qacjl             #+#    #+#             */
-/*   Updated: 2025/02/19 16:36:46 by qacjl            ###   ########.fr       */
+/*   Updated: 2025/02/25 16:21:19 by quenalla         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -50,8 +50,7 @@ static void	setup_heredoc(int i, t_pipeline *pipeline)
 	}
 }
 
-static void	setup_child(int i, int prev_fd, int pipe_fd[2],
-			t_exec_context *ctx)
+static void	setup_child(int i, int prev_fd, int pipe_fd[2], t_exec_context *ctx)
 {
 	if (i != 0)
 	{
@@ -126,7 +125,6 @@ void	execute_pipeline(t_pipeline *pipeline, char **env)
 	if (prev_fd != -1)
 		close(prev_fd);
 }
-
 
 /*
 	setup_child : configure l'environnement du processus enfant.

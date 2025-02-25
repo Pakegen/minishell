@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   adv_tokeniser.c                                    :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: qacjl <qacjl@student.42.fr>                +#+  +:+       +#+        */
+/*   By: quenalla <quenalla@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/02/17 03:00:00 by qacjl             #+#    #+#             */
-/*   Updated: 2025/02/24 13:18:23 by qacjl            ###   ########.fr       */
+/*   Updated: 2025/02/25 15:14:39 by quenalla         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -100,13 +100,6 @@ char	**advanced_tokenize(const char *line)
 
 #include "minishell.h"
 
-typedef enum e_state
-{
-	STATE_DEFAULT,
-	STATE_IN_SINGLE,
-	STATE_IN_DOUBLE,
-	STATE_ESCAPING
-}				t_state;
 
 static char	*append_char(char *str, char c)
 {
@@ -141,17 +134,17 @@ static void	process_default(char c, t_state *state, char **curr)
 	if (c == '\'')
 	{
 		*state = STATE_IN_SINGLE;
-		return;
+		return ;
 	}
 	if (c == '"')
 	{
 		*state = STATE_IN_DOUBLE;
-		return;
+		return ;
 	}
 	if (c == '\\')
 	{
 		*state = STATE_ESCAPING;
-		return;
+		return ;
 	}
 	*curr = append_char(*curr, c);
 }
@@ -185,22 +178,22 @@ static void	process_char(char c, t_state *state, char **curr)
 	if (*state == STATE_DEFAULT)
 	{
 		process_default(c, state, curr);
-		return;
+		return ;
 	}
 	if (*state == STATE_IN_SINGLE)
 	{
 		process_in_single(c, state, curr);
-		return;
+		return ;
 	}
 	if (*state == STATE_IN_DOUBLE)
 	{
 		process_in_double(c, state, curr);
-		return;
+		return ;
 	}
 	if (*state == STATE_ESCAPING)
 	{
 		process_escaping(c, state, curr);
-		return;
+		return ;
 	}
 }
 
